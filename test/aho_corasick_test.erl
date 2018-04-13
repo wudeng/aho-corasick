@@ -12,11 +12,11 @@ ahocorasick_test_() ->
     ].
 
 aho_corasick_chn() ->
-    Aho = aho_corasick:build_trie(["不要脸","敏感"]), 
-	Result = aho_corasick:match("我不要脸怎么就敏感了", Aho),
-	?_assertEqual(Result, ["敏感", "不要脸"]).
+    Aho = aho_corasick:build_tree(["去你妈的","你妈"]), 
+	Result = aho_corasick:match("去你妈", Aho),
+	?_assertEqual(Result, ["你妈"]).
 
 aho_corasick_eng() ->
-    Aho = aho_corasick:build_trie(["BC", "ABCD"]),
-	Result = aho_corasick:match("XABCDG", Aho),
-    ?_assertEqual(["ABCD", "BC"], Result).
+    Aho = aho_corasick:build_tree(["BC", "ABCD"]),
+	Result = aho_corasick:match("ABC", Aho),
+    ?_assertEqual(["BC"], Result).
