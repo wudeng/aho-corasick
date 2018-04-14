@@ -13,31 +13,32 @@
 build_tree(StringList) ->
     %% first build goto and output table
     {Goto, Output} = build_goto_output(StringList, _Goto=#{0 => #{}}, _Output=#{}, _State=0),
-    %% then build fail table
-    Fail = build_fail(Goto),
-    {Goto, Fail, Output}.
+    %% then build failure table
+    Failure = build_failure(Goto),
+    {Goto, Failure, Output}.
 
 %% State is used to locate node, every node is a map
 %% state 0 is the root node
 %%
 %% Goto:  State -> Map{Char -> State}
 %% Ouput: State -> String
-%% Fail: State -> State
+%% Failure: State -> State
 
 %% try to find patterns in string
-match(String, {Goto, Fail, Output}) ->
-    do_match(String, 0, {Goto, Fail, Output}, []).
+%% the match index starts from 1
+match(String, {Goto, Failure, Output}) ->
+    do_match(String, 0, {Goto, Failure, Output}, _Index = 1, _MatchList = []).
 
 
-do_match([], _, _, MatchList) ->
+do_match([], _, _, _Index, MatchList) ->
     MatchList;
-do_match([Char|Tail], State, {Goto, Fail, Output}, MatchList) ->
-    {NewState, NewMatchList} = do_match_inner(Char, State, {Goto, Fail, Output}, MatchList),
-    do_match(Tail, NewState, {Goto, Fail, Output}, NewMatchList).
+do_match([Char|Tail], State, {Goto, Failure, Output}, Index, MatchList) ->
+    {NewState, NewMatchList} = do_match_inner(Char, State, {Goto, Failure, Output}, Index, MatchList),
+    do_match(Tail, NewState, {Goto, Failure, Output}, Index + 1, NewMatchList).
 
 
 %% {NewState, NewMatchList} 
-do_match_inner(Char, State, {Goto, Fail, Output}, MatchList) ->
+do_match_inner(Char, State, {Goto, Failure, Output}, Index, MatchList) ->
     #{State := Node} = Goto,
     case maps:find(Char, Node) of
         error ->
@@ -45,25 +46,23 @@ do_match_inner(Char, State, {Goto, Fail, Output}, MatchList) ->
                 true ->
                     {State, MatchList};
                 false ->
-                    NextState = maps:get(State, Fail, 0),
-                    do_match_inner(Char, NextState, {Goto, Fail, Output}, MatchList)
+                    NextState = maps:get(State, Failure, 0),
+                    do_match_inner(Char, NextState, {Goto, Failure, Output}, Index, MatchList)
             end;
         {ok, NextState} ->
-            NewMatchList = get_output(NextState, {Goto, Fail, Output}, MatchList),
+            NewMatchList = get_output(NextState, {Goto, Failure, Output}, Index, MatchList),
             {NextState, NewMatchList}
     end.
 
-get_output(0, _, MatchList) ->
+get_output(0, _, _Index, MatchList) ->
     MatchList;
-get_output(State, {Goto, Fail, Output}, MatchList) ->
-    FailState = maps:get(State, Fail, 0),
+get_output(State, {Goto, Failure, Output}, Index, MatchList) ->
     NewMatchList = case maps:find(State, Output) of
-        error ->
-            MatchList;
-        {ok, Pattern} ->
-            [Pattern|MatchList]
+        error -> MatchList;
+        {ok, Pattern} -> [{Index-length(Pattern) + 1, Index, Pattern} | MatchList]
     end,
-    get_output(FailState, {Goto, Fail, Output}, NewMatchList).
+    FailureState = maps:get(State, Failure, 0),
+    get_output(FailureState, {Goto, Failure, Output}, Index, NewMatchList).
 
 
 build_goto_output([], Goto, Output, _MaxState) ->
@@ -87,52 +86,52 @@ add_pattern([Char|Tail], Goto, State, MaxState) ->
     end,
     add_pattern(Tail, NewGoto, NewState, NewMaxState).
 
-build_fail(#{0 := Node} = Goto) ->
+build_failure(#{0 := Node} = Goto) ->
     States = maps:values(Node),
-    do_build_fail(States, Goto, _Fail=#{}).
+    do_build_failure(States, Goto, _Failure=#{}).
 
-%% build fail with bfs search
-do_build_fail([], _Goto, Fail) ->
-    Fail;
-do_build_fail([State|Tail], Goto, Fail) ->
+%% build failure with bfs search
+do_build_failure([], _Goto, Failure) ->
+    Failure;
+do_build_failure([State|Tail], Goto, Failure) ->
     #{State := Node} = Goto,
 
-    %% find the starting point: the parent's fail node
-    FailState = maps:get(State, Fail, 0),
+    %% find the starting point: the parent's failure node
+    FailureState = maps:get(State, Failure, 0),
 
     %% children
     Kvs = maps:to_list(Node),
 
-    %% find fail node for all children
-    NewFail = do_build_fail_inner(Kvs, FailState, Goto, Fail),
+    %% find failure node for all children
+    NewFailure = do_build_failure_inner(Kvs, FailureState, Goto, Failure),
 
     %% add children states to the queue
     NewQueue = Tail ++ maps:values(Node),
 
-    do_build_fail(NewQueue, Goto, NewFail).
+    do_build_failure(NewQueue, Goto, NewFailure).
 
 
 %% 为节点构造失败指针
-%% @param FailState 是当前节点的失败指针
-do_build_fail_inner([], _FailState, _Goto, Fail) ->
-    Fail;
-do_build_fail_inner([{Char, State}|Tail], FailState, Goto, Fail) ->
-    NewFail = find_fail_node({Char, State}, FailState, Goto, Fail),
-    do_build_fail_inner(Tail, FailState, Goto, NewFail).
+%% @param FailureState 是当前节点的失败指针
+do_build_failure_inner([], _FailureState, _Goto, Failure) ->
+    Failure;
+do_build_failure_inner([{Char, State}|Tail], FailureState, Goto, Failure) ->
+    NewFailure = find_failure_node({Char, State}, FailureState, Goto, Failure),
+    do_build_failure_inner(Tail, FailureState, Goto, NewFailure).
 
 %% 为某个儿子节点构造失败指针
-find_fail_node({Char, State}, FailState, Goto, Fail) ->
-    #{FailState := Node} = Goto,
+find_failure_node({Char, State}, FailureState, Goto, Failure) ->
+    #{FailureState := Node} = Goto,
     case maps:find(Char, Node) of
         error ->
-            case FailState =:= 0 of
+            case FailureState =:= 0 of
                 true -> %% 找不到，而且已经到了根节点，查找失败
-                    Fail;
+                    Failure;
                 false -> %% 找不到但是还没到根节点，继续往上找
-                    NewFailState = maps:get(FailState, Fail, 0),
-                    find_fail_node({Char, State}, NewFailState, Goto, Fail)
+                    NewFailureState = maps:get(FailureState, Failure, 0),
+                    find_failure_node({Char, State}, NewFailureState, Goto, Failure)
             end;
-        {ok, TheFailState} -> %% 找到最近的失败节点的儿子节点拥有当前儿子节点的值，查找成功
-            Fail#{State => TheFailState}
+        {ok, TheFailureState} -> %% 找到最近的失败节点的儿子节点拥有当前儿子节点的值，查找成功
+            Failure#{State => TheFailureState}
     end.
 

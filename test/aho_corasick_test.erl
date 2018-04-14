@@ -14,9 +14,9 @@ ahocorasick_test_() ->
 aho_corasick_chn() ->
     Aho = aho_corasick:build_tree(["去你妈的","你妈"]), 
 	Result = aho_corasick:match("去你妈", Aho),
-	?_assertEqual(Result, ["你妈"]).
+	?_assertEqual(Result, [{2,3,"你妈"}]).
 
 aho_corasick_eng() ->
     Aho = aho_corasick:build_tree(["BC", "ABCD"]),
 	Result = aho_corasick:match("ABC", Aho),
-    ?_assertEqual(["BC"], Result).
+    ?_assertEqual([{2,3,"BC"}], Result).

@@ -1,6 +1,6 @@
 {application, aho_corasick, [
   {description, "aho corasick"},
-  {vsn, "v0.2.2"},
+  {vsn, "v0.0.1"},
   {registered, []},
   {applications, [kernel, stdlib]}
 ]}.
