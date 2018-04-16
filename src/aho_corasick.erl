@@ -26,6 +26,7 @@ build_tree(StringList) ->
 
 %% try to find patterns in string
 %% the match index starts from 1
+%% @return [{StartIndex, EndIndex, Pattern},...]
 match(String, {Goto, Failure, Output}) ->
     do_match(String, 0, {Goto, Failure, Output}, _Index = 1, _MatchList = []).
 
